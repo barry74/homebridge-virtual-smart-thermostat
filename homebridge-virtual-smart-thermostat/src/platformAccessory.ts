@@ -1,0 +1,328 @@
+import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
+import type { VirtualSmartThermostatPlatform } from './platform.js';
+import type { ApplianceConfig, ThermostatConfig } from './settings.js';
+
+const HEAT = 1;
+const COOL = 2;
+const AUTO = 3;
+
+export class VirtualThermostatAccessory {
+  private readonly service: Service;
+  private readonly info: Service;
+  private readonly heaterSwitch?: Service;
+  private readonly coolerSwitch?: Service;
+  private readonly heatState?: Service;
+
+  private currentTemperature = 20;
+  private currentHumidity?: number;
+  private targetTemperature: number;
+  private targetState = 0;
+  private currentState = 0;
+  private lastOnAt = 0;
+  private lastOffAt = 0;
+  private heaterOn = false;
+  private coolerOn = false;
+
+  constructor(
+    private readonly platform: VirtualSmartThermostatPlatform,
+    public readonly accessory: PlatformAccessory,
+    public readonly device: ThermostatConfig,
+  ) {
+    this.targetTemperature = device.defaultTarget ?? 20;
+
+    const saved = accessory.context.state as {
+      targetTemperature?: number;
+      targetState?: number;
+      currentTemperature?: number;
+    } | undefined;
+
+    if (typeof saved?.targetTemperature === 'number') {
+      this.targetTemperature = saved.targetTemperature;
+    }
+    if (typeof saved?.targetState === 'number') {
+      this.targetState = saved.targetState;
+    }
+    if (typeof saved?.currentTemperature === 'number') {
+      this.currentTemperature = saved.currentTemperature;
+    }
+
+    this.info = this.accessory.getService(this.platform.Service.AccessoryInformation)
+      || this.accessory.addService(this.platform.Service.AccessoryInformation);
+
+    this.info
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Virtual Smart Thermostat')
+      .setCharacteristic(this.platform.Characteristic.Model, 'Virtual Thermostat')
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, device.id);
+
+    this.service = this.accessory.getService(this.platform.Service.Thermostat)
+      || this.accessory.addService(this.platform.Service.Thermostat, device.name);
+
+    this.service.setCharacteristic(this.platform.Characteristic.Name, device.name);
+
+    const min = device.minTemp ?? 10;
+    const max = device.maxTemp ?? 30;
+    const step = device.minStep ?? 0.5;
+
+    this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+      .setProps({ minValue: -20, maxValue: 60, minStep: 0.1 })
+      .onGet(() => this.currentTemperature);
+
+    this.service.getCharacteristic(this.platform.Characteristic.CurrentRelativeHumidity)
+      .setProps({ minValue: 0, maxValue: 100, minStep: 1 })
+      .onGet(() => this.currentHumidity ?? 0);
+
+    this.service.getCharacteristic(this.platform.Characteristic.TargetTemperature)
+      .setProps({ minValue: min, maxValue: max, minStep: step })
+      .onGet(() => this.targetTemperature)
+      .onSet(async (value: CharacteristicValue) => {
+        this.targetTemperature = Number(value);
+        this.persist();
+        this.platform.log.info(`${device.name}: target ${this.targetTemperature}°C`);
+        await this.evaluate();
+      });
+
+    this.service.getCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState)
+      .onGet(() => this.currentState);
+
+    this.service.getCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState)
+      .setProps({
+        validValues: [
+          this.platform.Characteristic.TargetHeatingCoolingState.OFF,
+          this.platform.Characteristic.TargetHeatingCoolingState.HEAT,
+          this.platform.Characteristic.TargetHeatingCoolingState.COOL,
+          this.platform.Characteristic.TargetHeatingCoolingState.AUTO,
+        ],
+      })
+      .onGet(() => this.targetState)
+      .onSet(async (value: CharacteristicValue) => {
+        this.targetState = Number(value);
+        this.persist();
+        this.platform.log.info(`${device.name}: mode ${this.modeName(this.targetState)}`);
+        await this.evaluate();
+      });
+
+    this.service.getCharacteristic(this.platform.Characteristic.TemperatureDisplayUnits)
+      .onGet(() => this.platform.Characteristic.TemperatureDisplayUnits.CELSIUS)
+      .onSet(async () => undefined);
+
+    const showHeaterSwitch = device.showHeaterSwitch === true;
+    const showCoolerSwitch = device.showCoolerSwitch === true;
+
+    if (showHeaterSwitch) {
+      this.heaterSwitch = this.accessory.getService('Heater')
+        || this.accessory.addService(this.platform.Service.Switch, `${device.name} kachel`, 'heater');
+      this.heaterSwitch.setCharacteristic(this.platform.Characteristic.Name, `${device.name} kachel`);
+      this.heaterSwitch.getCharacteristic(this.platform.Characteristic.On)
+        .onGet(() => this.heaterOn)
+        .onSet(async (value: CharacteristicValue) => {
+          this.heaterOn = Boolean(value);
+          this.updateHeatState();
+          await this.setAppliancesOfType('heater', this.heaterOn);
+        });
+    } else {
+      const leftoverHeater = this.accessory.getService('Heater');
+      if (leftoverHeater) {
+        this.accessory.removeService(leftoverHeater);
+      }
+    }
+
+    if (showCoolerSwitch) {
+      this.coolerSwitch = this.accessory.getService('Cooler')
+        || this.accessory.addService(this.platform.Service.Switch, `${device.name} koeling`, 'cooler');
+      this.coolerSwitch.setCharacteristic(this.platform.Characteristic.Name, `${device.name} koeling`);
+      this.coolerSwitch.getCharacteristic(this.platform.Characteristic.On)
+        .onGet(() => this.coolerOn)
+        .onSet(async (value: CharacteristicValue) => {
+          this.coolerOn = Boolean(value);
+          await this.setAppliancesOfType('cooler', this.coolerOn);
+        });
+    } else {
+      const leftoverCooler = this.accessory.getService('Cooler');
+      if (leftoverCooler) {
+        this.accessory.removeService(leftoverCooler);
+      }
+    }
+
+    this.heatState = this.accessory.getService('Heat State')
+      || this.accessory.addService(this.platform.Service.OccupancySensor, `${device.name} heat`, 'heat-state');
+    this.heatState.setCharacteristic(this.platform.Characteristic.Name, `${device.name} heat`);
+    this.heatState.getCharacteristic(this.platform.Characteristic.OccupancyDetected)
+      .onGet(() => this.heaterOn
+        ? this.platform.Characteristic.OccupancyDetected.OCCUPANCY_DETECTED
+        : this.platform.Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED);
+
+    const leftoverTv = this.accessory.getService('TV Heat');
+    if (leftoverTv) {
+      this.accessory.removeService(leftoverTv);
+    }
+
+    this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, this.currentTemperature);
+    this.service.updateCharacteristic(this.platform.Characteristic.TargetTemperature, this.targetTemperature);
+    this.service.updateCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState, this.targetState);
+    this.service.updateCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState, this.currentState);
+  }
+
+  get id(): string {
+    return this.device.id;
+  }
+
+  async setClimate(temperature?: number, humidity?: number): Promise<void> {
+    if (typeof temperature === 'number' && Number.isFinite(temperature)) {
+      this.currentTemperature = Math.round(temperature * 10) / 10;
+      this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, this.currentTemperature);
+    }
+    if (typeof humidity === 'number' && Number.isFinite(humidity)) {
+      this.currentHumidity = Math.round(humidity);
+      this.service.updateCharacteristic(this.platform.Characteristic.CurrentRelativeHumidity, this.currentHumidity);
+    }
+    this.persist();
+    await this.evaluate();
+  }
+
+  async setCurrentTemperature(value: number): Promise<void> {
+    await this.setClimate(value);
+  }
+
+  async evaluate(): Promise<void> {
+    const temp = this.currentTemperature;
+    const target = this.targetTemperature;
+    const hysteresis = this.device.hysteresis ?? 0.5;
+    const now = Date.now();
+    const minOn = (this.device.minOnSeconds ?? 60) * 1000;
+    const minOff = (this.device.minOffSeconds ?? 60) * 1000;
+
+    let desiredHeat = false;
+    let desiredCool = false;
+
+    if (this.targetState === HEAT || this.targetState === AUTO) {
+      if (this.heaterOn) {
+        desiredHeat = temp < target;
+      } else {
+        desiredHeat = temp <= target - hysteresis;
+      }
+    }
+
+    if (this.targetState === COOL || this.targetState === AUTO) {
+      if (this.coolerOn) {
+        desiredCool = temp > target;
+      } else {
+        desiredCool = temp >= target + hysteresis;
+      }
+    }
+
+    if (desiredHeat && desiredCool) {
+      desiredCool = false;
+    }
+
+    const heatLocked = this.heaterOn ? now - this.lastOnAt < minOn : now - this.lastOffAt < minOff;
+    const coolLocked = this.coolerOn ? now - this.lastOnAt < minOn : now - this.lastOffAt < minOff;
+
+    if (desiredHeat !== this.heaterOn && !heatLocked) {
+      await this.setHeater(desiredHeat);
+    }
+    if (desiredCool !== this.coolerOn && !coolLocked) {
+      await this.setCooler(desiredCool);
+    }
+
+    if (this.heaterOn) {
+      this.currentState = this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
+    } else if (this.coolerOn) {
+      this.currentState = this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
+    } else {
+      this.currentState = this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
+    }
+
+    this.service.updateCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState, this.currentState);
+  }
+
+  private async setHeater(on: boolean): Promise<void> {
+    this.heaterOn = on;
+    this.touchTiming(on);
+    this.heaterSwitch?.updateCharacteristic(this.platform.Characteristic.On, on);
+    this.updateHeatState();
+    await this.setAppliancesOfType('heater', on);
+    this.platform.log.info(`${this.device.name}: heat ${on ? 'on' : 'off'}`);
+  }
+
+  private async setCooler(on: boolean): Promise<void> {
+    this.coolerOn = on;
+    this.touchTiming(on);
+    this.coolerSwitch?.updateCharacteristic(this.platform.Characteristic.On, on);
+    await this.setAppliancesOfType('cooler', on);
+    this.platform.log.info(`${this.device.name}: koeling ${on ? 'AAN' : 'UIT'}`);
+  }
+
+  private updateHeatState(): void {
+    this.heatState?.updateCharacteristic(
+      this.platform.Characteristic.OccupancyDetected,
+      this.heaterOn
+        ? this.platform.Characteristic.OccupancyDetected.OCCUPANCY_DETECTED
+        : this.platform.Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED,
+    );
+  }
+
+  private touchTiming(on: boolean): void {
+    if (on) {
+      this.lastOnAt = Date.now();
+    } else {
+      this.lastOffAt = Date.now();
+    }
+  }
+
+  private async setAppliancesOfType(type: 'heater' | 'cooler', on: boolean): Promise<void> {
+    const appliances = (this.device.appliances ?? []).filter((item) => item.type === type);
+    for (const appliance of appliances) {
+      await this.controlAppliance(appliance, on);
+    }
+  }
+
+  private async controlAppliance(appliance: ApplianceConfig, on: boolean): Promise<void> {
+    if (appliance.controlType !== 'webhook') {
+      return;
+    }
+
+    const url = on
+      ? (appliance.webhookOn ?? appliance.webhook)
+      : (appliance.webhookOff ?? appliance.webhook);
+
+    if (!url) {
+      this.platform.log.warn(`Geen webhook voor ${appliance.name}`);
+      return;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: appliance.name, type: appliance.type, state: on }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      this.platform.log.error(`Webhook ${appliance.name} mislukt:`, error);
+    }
+  }
+
+  private persist(): void {
+    this.accessory.context.state = {
+      targetTemperature: this.targetTemperature,
+      targetState: this.targetState,
+      currentTemperature: this.currentTemperature,
+    };
+  }
+
+  private modeName(state: number): string {
+    switch (state) {
+      case HEAT:
+        return 'HEAT';
+      case COOL:
+        return 'COOL';
+      case AUTO:
+        return 'AUTO';
+      default:
+        return 'OFF';
+    }
+  }
+}

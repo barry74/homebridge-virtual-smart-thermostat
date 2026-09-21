@@ -1,0 +1,154 @@
+{
+  "pluginAlias": "VirtualSmartThermostat",
+  "pluginType": "platform",
+  "singular": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Naam",
+        "type": "string",
+        "default": "Virtual Smart Thermostat"
+      },
+      "pollInterval": {
+        "title": "Poll-interval (seconden)",
+        "type": "integer",
+        "default": 60,
+        "minimum": 15,
+        "description": "Hoe vaak de gekozen thermometer en de thermostaatlogica worden gecontroleerd."
+      },
+      "webhookPort": {
+        "title": "Webhook-poort",
+        "type": "integer",
+        "default": 18081,
+        "description": "Lokale HTTP-poort voor optionele temperatuur-updates."
+      },
+      "thermostats": {
+        "title": "Thermostaten",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["id", "name"],
+          "properties": {
+            "id": {
+              "title": "ID",
+              "type": "string",
+              "description": "Stabiele id, bijvoorbeeld woonkamer.",
+              "placeholder": "woonkamer"
+            },
+            "name": {
+              "title": "Naam van de virtuele thermostaat",
+              "type": "string",
+              "placeholder": "Woonkamer thermostaat"
+            },
+            "temperatureSensor": {
+              "title": "Thermometer",
+              "type": "string",
+              "description": "Naam van de sensor zoals in Apple Home / Homebridge, bijvoorbeeld 'Shelly H&T' of 'Woonkamer'. Bij een Shelly mag je ook het IP-adres invullen.",
+              "placeholder": "Shelly H&T"
+            },
+            "shellyHost": {
+              "title": "Shelly IP-adres (optioneel)",
+              "type": "string",
+              "description": "Direct uitlezen via het lokale IP van de Shelly H&T. Werkt ook als de sensor alleen in Apple Home staat.",
+              "placeholder": "192.168.1.50"
+            },
+            "defaultTarget": {
+              "title": "Standaard setpoint (°C)",
+              "type": "number",
+              "default": 20
+            },
+            "minTemp": {
+              "title": "Minimum setpoint",
+              "type": "number",
+              "default": 10
+            },
+            "maxTemp": {
+              "title": "Maximum setpoint",
+              "type": "number",
+              "default": 30
+            },
+            "minStep": {
+              "title": "Stapgrootte",
+              "type": "number",
+              "default": 0.5
+            },
+            "hysteresis": {
+              "title": "Hysteresis (°C)",
+              "type": "number",
+              "default": 0.5
+            },
+            "minOnSeconds": {
+              "title": "Minimale aan-tijd (s)",
+              "type": "integer",
+              "default": 60
+            },
+            "minOffSeconds": {
+              "title": "Minimale uit-tijd (s)",
+              "type": "integer",
+              "default": 60
+            },
+            "temperatureUrl": {
+              "title": "Temperatuur HTTP-URL (optioneel)",
+              "type": "string"
+            },
+            "temperatureJsonPath": {
+              "title": "JSON-pad",
+              "type": "string",
+              "placeholder": "temperature"
+            },
+            "showHeaterSwitch": {
+              "title": "Toon schakelaar kachel (optioneel)",
+              "type": "boolean",
+              "default": false,
+              "description": "Standaard uit. Voor automations gebruik je de sensor 'heat' (heat on / heat off)."
+            },
+            "showCoolerSwitch": {
+              "title": "Toon schakelaar koeling (optioneel)",
+              "type": "boolean",
+              "default": false
+            },
+            "appliances": {
+              "title": "Apparaten",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "type", "controlType"],
+                "properties": {
+                  "name": {
+                    "title": "Naam",
+                    "type": "string"
+                  },
+                  "type": {
+                    "title": "Type",
+                    "type": "string",
+                    "enum": ["heater", "cooler"],
+                    "default": "heater"
+                  },
+                  "controlType": {
+                    "title": "Aansturing",
+                    "type": "string",
+                    "enum": ["switch", "webhook"],
+                    "default": "switch"
+                  },
+                  "webhook": {
+                    "title": "Webhook URL (aan en uit)",
+                    "type": "string"
+                  },
+                  "webhookOn": {
+                    "title": "Webhook URL alleen AAN",
+                    "type": "string"
+                  },
+                  "webhookOff": {
+                    "title": "Webhook URL alleen UIT",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

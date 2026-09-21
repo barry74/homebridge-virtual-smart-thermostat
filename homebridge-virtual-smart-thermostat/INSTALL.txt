@@ -1,0 +1,8 @@
+1. Verwijder homebridge-smart-thermostat-control.
+2. Kopieer deze map naar je Homebridge-machine, bijvoorbeeld:
+   /var/lib/homebridge/node_modules/homebridge-virtual-smart-thermostat
+   of /homebridge/node_modules/homebridge-virtual-smart-thermostat (Docker)
+3. Zorg dat package.json + dist/ + config.schema.json aanwezig zijn.
+4. Voeg het platform toe aan config.json (zie README.md).
+5. Herstart Homebridge.
+6. Open poort 18081 op je LAN als je webhooks gebruikt.

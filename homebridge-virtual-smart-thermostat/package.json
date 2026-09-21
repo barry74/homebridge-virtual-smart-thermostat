@@ -1,0 +1,38 @@
+{
+  "name": "homebridge-virtual-smart-thermostat",
+  "displayName": "Virtual Smart Thermostat",
+  "type": "module",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Virtual HomeKit thermostats for Homebridge 1.8+ and 2.x. Control heaters and coolers from a setpoint, with HTTP sensors, webhooks, hysteresis and optional TV-heat compensation.",
+  "author": "Grok",
+  "license": "Apache-2.0",
+  "keywords": [
+    "homebridge-plugin",
+    "supports-hap",
+    "thermostat",
+    "virtual-thermostat",
+    "homekit"
+  ],
+  "main": "dist/index.js",
+  "files": [
+    "LICENSE",
+    "README.md",
+    "config.schema.json",
+    "dist"
+  ],
+  "engines": {
+    "node": "^20 || ^22 || ^24 || ^26",
+    "homebridge": "^1.8.0 || ^2.0.0"
+  },
+  "scripts": {
+    "build": "rimraf ./dist && tsc",
+    "watch": "npm run build && npm link && nodemon"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "homebridge": "^2.4.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.0"
+  }
+}
