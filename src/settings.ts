@@ -33,6 +33,12 @@ export interface ThermostatConfig {
   temperatureJsonPath?: string;
   showHeaterSwitch?: boolean;
   showCoolerSwitch?: boolean;
+  /** Zichtbare standen in Apple Home. Standaard alle vier. */
+  modes?: Array<'off' | 'heat' | 'cool' | 'auto'>;
+  showModeOff?: boolean;
+  showModeHeat?: boolean;
+  showModeCool?: boolean;
+  showModeAuto?: boolean;
   appliances?: ApplianceConfig[];
 }
 

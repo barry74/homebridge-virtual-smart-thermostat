@@ -127,3 +127,17 @@ In Eve of de Woning-app:
 De schakelaar **Woonkamer kachel** is optioneel. Alleen zichtbaar met `"showHeaterSwitch": true`.
 
 TV-warmtecompensatie zit er niet in.
+
+
+## Standen in Apple Home
+
+Standaard zijn alleen **Uit** en **Verwarmen** zichtbaar. Koelen en Automatisch staan uit.
+
+```json
+"showModeOff": true,
+"showModeHeat": true,
+"showModeCool": false,
+"showModeAuto": false
+```
+
+Zet `showModeCool` of `showModeAuto` op `true` als je die stand wel wilt. Na een wijziging de thermostaat in Apple Home even verwijderen en Homebridge herstarten, anders houdt de Woning-app de oude standen vast.

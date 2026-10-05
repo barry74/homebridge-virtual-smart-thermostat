@@ -112,6 +112,26 @@
               "type": "string",
               "placeholder": "temperature"
             },
+            "showModeOff": {
+              "title": "Toon stand Uit in Apple Home",
+              "type": "boolean",
+              "default": true
+            },
+            "showModeHeat": {
+              "title": "Toon stand Verwarmen in Apple Home",
+              "type": "boolean",
+              "default": true
+            },
+            "showModeCool": {
+              "title": "Toon stand Koelen in Apple Home",
+              "type": "boolean",
+              "default": false
+            },
+            "showModeAuto": {
+              "title": "Toon stand Automatisch in Apple Home",
+              "type": "boolean",
+              "default": false
+            },
             "showHeaterSwitch": {
               "title": "Toon schakelaar kachel (optioneel)",
               "type": "boolean",

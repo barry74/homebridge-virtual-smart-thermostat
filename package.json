@@ -2,7 +2,7 @@
   "name": "homebridge-virtual-smart-thermostat",
   "displayName": "Virtual Smart Thermostat",
   "type": "module",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": false,
   "description": "Virtual HomeKit thermostats for Homebridge 1.8+ and 2.x. Control heaters and coolers from a setpoint, with HTTP sensors, Shelly Uni/Add-on probes, webhooks and hysteresis.",
   "author": "barry74",

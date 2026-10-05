@@ -81,21 +81,22 @@ export class VirtualThermostatAccessory {
         await this.evaluate();
       });
 
+    const modes = this.visibleModes();
+    if (!modes.includes(this.targetState)) {
+      this.targetState = modes.includes(HEAT) ? HEAT : modes[0];
+      this.persist();
+    }
+
     this.service.getCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState)
+      .setProps({ validValues: modes })
       .onGet(() => this.currentState);
 
     this.service.getCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState)
-      .setProps({
-        validValues: [
-          this.platform.Characteristic.TargetHeatingCoolingState.OFF,
-          this.platform.Characteristic.TargetHeatingCoolingState.HEAT,
-          this.platform.Characteristic.TargetHeatingCoolingState.COOL,
-          this.platform.Characteristic.TargetHeatingCoolingState.AUTO,
-        ],
-      })
+      .setProps({ validValues: modes })
       .onGet(() => this.targetState)
       .onSet(async (value: CharacteristicValue) => {
-        this.targetState = Number(value);
+        const next = Number(value);
+        this.targetState = modes.includes(next) ? next : modes[0];
         this.persist();
         this.platform.log.info(`${device.name}: mode ${this.modeName(this.targetState)}`);
         await this.evaluate();
@@ -313,7 +314,29 @@ export class VirtualThermostatAccessory {
     };
   }
 
+  private visibleModes(): number[] {
+    const off = this.platform.Characteristic.TargetHeatingCoolingState.OFF;
+    const heat = this.platform.Characteristic.TargetHeatingCoolingState.HEAT;
+    const cool = this.platform.Characteristic.TargetHeatingCoolingState.COOL;
+    const auto = this.platform.Characteristic.TargetHeatingCoolingState.AUTO;
+    const listed = (this.device.modes ?? []).map((mode) => mode.toLowerCase());
+    const enabled = (name: 'off' | 'heat' | 'cool' | 'auto', flag: boolean | undefined, fallback: boolean) => {
+      if (listed.length > 0) {
+        return listed.includes(name);
+      }
+      return flag ?? fallback;
+    };
+    const modes = [
+      enabled('off', this.device.showModeOff, true) ? off : undefined,
+      enabled('heat', this.device.showModeHeat, true) ? heat : undefined,
+      enabled('cool', this.device.showModeCool, false) ? cool : undefined,
+      enabled('auto', this.device.showModeAuto, false) ? auto : undefined,
+    ].filter((value): value is number => value !== undefined);
+    return modes.length > 0 ? modes : [off];
+  }
+
   private modeName(state: number): string {
+
     switch (state) {
       case HEAT:
         return 'HEAT';
