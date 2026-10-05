@@ -124,7 +124,7 @@ export class VirtualSmartThermostatPlatform implements DynamicPlatformPlugin {
             this.log.debug(`${device.name}: ${reading.temperature}°C via ${reading.source}`);
           }
         } else if (device.temperatureSensor || device.shellyHost || device.temperatureUrl) {
-          this.log.warn(`${device.name}: geen temperatuur gevonden voor sensor "${device.temperatureSensor ?? device.shellyHost ?? device.temperatureUrl}"`);
+          this.log.warn(`${device.name}: geen temperatuur gevonden voor sensor "${device.temperatureSensor ?? device.shellyHost ?? device.temperatureUrl}"${device.shellySensor ? ` probe ${device.shellySensor}` : ""}`);
         }
       } catch (error) {
         this.log.error(`${device.name}: temperatuur ophalen mislukt:`, error);
@@ -147,8 +147,9 @@ export class VirtualSmartThermostatPlatform implements DynamicPlatformPlugin {
   }
 
   private async readClimate(device: ThermostatConfig, storagePath: string) {
+    const auth = { user: device.shellyUser, password: device.shellyPassword };
     if (device.shellyHost) {
-      return readShellyClimate(device.shellyHost);
+      return readShellyClimate(device.shellyHost, device.shellySensor, auth);
     }
     if (device.temperatureUrl) {
       return readHttpClimate(device.temperatureUrl, device.temperatureJsonPath);
@@ -159,7 +160,7 @@ export class VirtualSmartThermostatPlatform implements DynamicPlatformPlugin {
         || device.temperatureSensor.startsWith('http');
       if (looksLikeHost && !device.temperatureSensor.includes(' ')) {
         try {
-          return await readShellyClimate(device.temperatureSensor);
+          return await readShellyClimate(device.temperatureSensor, device.shellySensor, auth);
         } catch {
           // Val terug op Homebridge-sensornaam.
         }

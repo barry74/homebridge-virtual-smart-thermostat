@@ -25,6 +25,10 @@ export interface ThermostatConfig {
   minOffSeconds?: number;
   temperatureSensor?: string;
   shellyHost?: string;
+  /** Probe-index of id: 0/1 op Shelly Uni, 100/101 op Shelly Add-on, of addon/external/internal. */
+  shellySensor?: string;
+  shellyUser?: string;
+  shellyPassword?: string;
   temperatureUrl?: string;
   temperatureJsonPath?: string;
   showHeaterSwitch?: boolean;

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -93,20 +94,22 @@ function readCachedAccessories(storagePath) {
         return [];
     }
 }
-export async function readShellyClimate(host) {
+export async function readShellyClimate(host, sensor, auth) {
     const base = host.startsWith('http://') || host.startsWith('https://') ? host.replace(/\/+$/, '') : `http://${host}`;
+    const choice = parseSensorChoice(sensor);
     try {
-        const gen2 = await fetchJson(`${base}/rpc/Shelly.GetStatus`);
-        const fromGen2 = parseShellyGen2(gen2);
+        const gen2 = await fetchJson(`${base}/rpc/Shelly.GetStatus`, auth);
+        const fromGen2 = parseShellyGen2(gen2, choice);
         if (fromGen2.temperature !== undefined) {
-            return { ...fromGen2, source: `shelly:${base}` };
+            return { ...fromGen2, source: `shelly:${base}${fromGen2.source ? `:${fromGen2.source}` : ''}` };
         }
     }
     catch {
-        // Probeer gen1.
+        // Probeer gen1 (Shelly Uni) hieronder.
     }
-    const gen1 = await fetchJson(`${base}/status`);
-    return { ...parseShellyGen1(gen1), source: `shelly:${base}` };
+    const gen1 = await fetchJson(`${base}/status`, auth);
+    const fromGen1 = parseShellyGen1(gen1, choice);
+    return { ...fromGen1, source: `shelly:${base}${fromGen1.source ? `:${fromGen1.source}` : ''}` };
 }
 export async function readHttpClimate(url, jsonPath) {
     const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
@@ -137,49 +140,173 @@ export function logAvailableSensors(log, storagePath) {
     }
     log.info(`Beschikbare temperatuursensors: ${names.join(', ')}`);
 }
-function parseShellyGen2(data) {
+function parseSensorChoice(sensor) {
+    const raw = (sensor ?? '').trim().toLowerCase();
+    if (!raw || raw === 'auto') {
+        return { mode: 'auto' };
+    }
+    if (raw === 'addon' || raw === 'add-on' || raw === 'external' || raw === 'ext' || raw === 'uni') {
+        return { mode: 'external' };
+    }
+    if (raw === 'internal' || raw === 'device' || raw === 'chip') {
+        return { mode: 'internal' };
+    }
+    return { mode: 'id', id: raw };
+}
+function isPlausibleTemperature(value) {
+    return value !== undefined && value > -50 && value < 125;
+}
+function parseShellyGen2(data, choice) {
     if (!data || typeof data !== 'object') {
         return {};
     }
     const obj = data;
-    let temperature;
-    let humidity;
+    const external = [];
+    const internal = [];
     for (const [key, value] of Object.entries(obj)) {
         if (!value || typeof value !== 'object') {
             continue;
         }
         const block = value;
-        if (key.startsWith('temperature:') || key === 'temperature:0') {
-            temperature = numeric(block.tC ?? block.t_c ?? block.value);
+        if (key.startsWith('temperature:')) {
+            const id = key.slice('temperature:'.length);
+            const humidityBlock = obj[`humidity:${id}`];
+            const entry = {
+                id,
+                temperature: numeric(block.tC ?? block.t_c ?? block.value),
+                humidity: humidityBlock && typeof humidityBlock === 'object'
+                    ? numeric(humidityBlock.rh ?? humidityBlock.value)
+                    : undefined,
+            };
+            if (Number(id) >= 100) {
+                external.push(entry);
+            }
+            else {
+                internal.push(entry);
+            }
         }
-        if (key.startsWith('humidity:') || key === 'humidity:0') {
-            humidity = numeric(block.rh ?? block.value);
+        if (key.startsWith('switch:') || key.startsWith('cover:')) {
+            const nested = block.temperature;
+            if (nested && typeof nested === 'object') {
+                internal.push({
+                    id: key,
+                    temperature: numeric(nested.tC ?? nested.t_c),
+                });
+            }
         }
     }
-    return { temperature, humidity };
+    const picked = pickShellySensor([...external, ...internal], external, internal, choice);
+    if (!picked) {
+        return {};
+    }
+    return {
+        temperature: picked.temperature,
+        humidity: picked.humidity,
+        source: `addon:${picked.id}`,
+    };
 }
-function parseShellyGen1(data) {
+function parseShellyGen1(data, choice) {
     if (!data || typeof data !== 'object') {
         return {};
     }
     const obj = data;
+    const external = [];
+    const temps = obj.ext_temperature && typeof obj.ext_temperature === 'object' ? obj.ext_temperature : {};
+    const hums = obj.ext_humidity && typeof obj.ext_humidity === 'object' ? obj.ext_humidity : {};
+    for (const [id, value] of Object.entries(temps)) {
+        if (!value || typeof value !== 'object') {
+            continue;
+        }
+        const block = value;
+        const humidityBlock = hums[id];
+        const humidity = humidityBlock && typeof humidityBlock === 'object'
+            ? numeric(humidityBlock.hum ?? humidityBlock.value)
+            : undefined;
+        const temperature = numeric(block.tC ?? block.t_c ?? block.value);
+        external.push({ id, temperature, humidity });
+        if (typeof block.hwID === 'string' && block.hwID) {
+            external.push({ id: block.hwID.toLowerCase(), temperature, humidity });
+        }
+    }
     const tmp = obj.tmp && typeof obj.tmp === 'object' ? obj.tmp : undefined;
     const hum = obj.hum && typeof obj.hum === 'object' ? obj.hum : undefined;
-    const ext = obj.ext_temperature && typeof obj.ext_temperature === 'object'
-        ? Object.values(obj.ext_temperature)[0]
-        : undefined;
-    const extObj = ext && typeof ext === 'object' ? ext : undefined;
+    const internal = [{
+            id: 'internal',
+            temperature: numeric(tmp?.value ?? tmp?.tC ?? obj.temperature),
+            humidity: numeric(hum?.value ?? obj.humidity),
+        }];
+    const picked = pickShellySensor([...external, ...internal], external, internal, choice);
+    if (!picked) {
+        return {};
+    }
     return {
-        temperature: numeric(tmp?.value ?? tmp?.tC ?? obj.temperature ?? extObj?.tC),
-        humidity: numeric(hum?.value ?? obj.humidity),
+        temperature: picked.temperature,
+        humidity: picked.humidity,
+        source: `uni:${picked.id}`,
     };
 }
-async function fetchJson(url) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+function pickShellySensor(all, external, internal, choice) {
+    const valid = (items) => items.filter((item) => isPlausibleTemperature(item.temperature));
+    if (choice.mode === 'id' && choice.id) {
+        const wanted = choice.id.toLowerCase();
+        return valid(all).find((item) => item.id.toLowerCase() === wanted)
+            ?? valid(all).find((item) => item.id.toLowerCase().includes(wanted));
+    }
+    if (choice.mode === 'internal') {
+        return valid(internal)[0];
+    }
+    return valid(external)[0] ?? (choice.mode === 'auto' ? valid(internal)[0] : undefined);
+}
+async function fetchJson(url, auth) {
+    const headers = {};
+    if (auth?.user) {
+        headers.Authorization = `Basic ${Buffer.from(`${auth.user}:${auth.password ?? ''}`).toString('base64')}`;
+    }
+    let response = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+    if (response.status === 401 && auth?.user) {
+        const challenge = response.headers.get('www-authenticate') ?? '';
+        if (challenge.toLowerCase().includes('digest')) {
+            response = await fetch(url, {
+                headers: { Authorization: digestHeader(challenge, 'GET', url, auth.user, auth.password ?? '') },
+                signal: AbortSignal.timeout(8000),
+            });
+        }
+    }
     if (!response.ok) {
         throw new Error(`HTTP ${response.status} from ${url}`);
     }
     return response.json();
+}
+function digestHeader(challenge, method, url, user, password) {
+    const fields = Object.fromEntries([...challenge.matchAll(/(\w+)=(?:"([^"]+)"|([^,\s]+))/g)].map((match) => [match[1], match[2] ?? match[3]]));
+    const realm = fields.realm ?? '';
+    const nonce = fields.nonce ?? '';
+    const qop = (fields.qop ?? 'auth').split(',')[0].trim();
+    const opaque = fields.opaque;
+    const uri = new URL(url).pathname + new URL(url).search;
+    const nc = '00000001';
+    const cnonce = Math.random().toString(16).slice(2, 10);
+    const ha1 = md5(`${user}:${realm}:${password}`);
+    const ha2 = md5(`${method}:${uri}`);
+    const response = md5(`${ha1}:${nonce}:${nc}:${cnonce}:${qop}:${ha2}`);
+    const parts = [
+        `username="${user}"`,
+        `realm="${realm}"`,
+        `nonce="${nonce}"`,
+        `uri="${uri}"`,
+        `algorithm=MD5`,
+        `qop=${qop}`,
+        `nc=${nc}`,
+        `cnonce="${cnonce}"`,
+        `response="${response}"`,
+    ];
+    if (opaque) {
+        parts.push(`opaque="${opaque}"`);
+    }
+    return `Digest ${parts.join(', ')}`;
+}
+function md5(value) {
+    return createHash('md5').update(value).digest('hex');
 }
 function readPath(data, pathName) {
     const parts = pathName.replace(/^\$\.?/, '').split('.').filter(Boolean);

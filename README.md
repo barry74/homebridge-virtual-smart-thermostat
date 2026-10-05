@@ -24,13 +24,35 @@ Kopieer die naam exact.
 
 ### Shelly alleen in Apple Home
 
-Apple Home laat een plugin niet vrij een willekeurige HomeKit-sensor kiezen. Als de Shelly H&T **alleen** via Matter/HomeKit in Apple Home staat en niet via een Homebridge-plugin, vul dan het lokale IP in:
+Apple Home laat een plugin niet vrij een willekeurige HomeKit-sensor kiezen. Als de Shelly **alleen** via Matter/HomeKit in Apple Home staat en niet via een Homebridge-plugin, vul dan het lokale IP in:
 
 ```json
 "shellyHost": "192.168.1.50"
 ```
 
-De plugin leest dan rechtstreeks `tC` / `humidity` van de Shelly (gen1 en gen2/Plus).
+De plugin leest dan rechtstreeks de thermometer (gen1 en gen2/Plus).
+
+### Shelly Uni (gen1, DS18B20)
+
+Shelly Uni heeft geen ingebouwde kamerthermometer. De 1-Wire probes staan in `/status` onder `ext_temperature`. Zonder `shellySensor` wordt de eerste geldige probe gebruikt. Kies `0` of `1` als er twee thermometers op de Uni zitten:
+
+```json
+"shellyHost": "192.168.1.40",
+"shellySensor": "0"
+```
+
+Ongeldige probes (`999` of leeg) worden overgeslagen. Een DHT22 op de Uni levert ook luchtvochtigheid.
+
+### Shelly Add-on (Plus 1 / Plus 1PM / Plus 2PM)
+
+De Shelly Plus Add-on (DS18B20 of DHT22) verschijnt als `temperature:100`, `temperature:101`, … De chiptemperatuur van het relais (`switch:0`) wordt niet gebruikt, die is te warm. Zonder `shellySensor` pakt de plugin de eerste Add-on-probe. Meerdere probes:
+
+```json
+"shellyHost": "192.168.1.41",
+"shellySensor": "100"
+```
+
+`addon` of `external` dwingt een externe probe. `internal` leest alleen de apparaattemperatuur (niet aan te raden voor een kamerthermostaat). Optioneel `shellyUser` / `shellyPassword` (basic of digest).
 
 ### Volgorde
 
@@ -54,7 +76,8 @@ Vochtigheid van een Shelly H&T wordt ook op de thermostaat getoond.
       "id": "woonkamer",
       "name": "Woonkamer thermostaat",
       "temperatureSensor": "Shelly H&T",
-      "shellyHost": "192.168.1.50",
+      "shellyHost": "192.168.1.40",
+      "shellySensor": "0",
       "defaultTarget": 20,
       "hysteresis": 0.5,
       "minOnSeconds": 90,

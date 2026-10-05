@@ -2,10 +2,10 @@
   "name": "homebridge-virtual-smart-thermostat",
   "displayName": "Virtual Smart Thermostat",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": false,
-  "description": "Virtual HomeKit thermostats for Homebridge 1.8+ and 2.x. Control heaters and coolers from a setpoint, with HTTP sensors, webhooks, hysteresis and optional TV-heat compensation.",
-  "author": "Grok",
+  "description": "Virtual HomeKit thermostats for Homebridge 1.8+ and 2.x. Control heaters and coolers from a setpoint, with HTTP sensors, Shelly Uni/Add-on probes, webhooks and hysteresis.",
+  "author": "barry74",
   "license": "Apache-2.0",
   "keywords": [
     "homebridge-plugin",
@@ -34,5 +34,13 @@
     "homebridge": "^2.4.0",
     "rimraf": "^6.0.1",
     "typescript": "^5.8.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/barry74/homebridge-virtual-smart-thermostat.git"
+  },
+  "bugs": {
+    "url": "https://github.com/barry74/homebridge-virtual-smart-thermostat/issues"
+  },
+  "homepage": "https://github.com/barry74/homebridge-virtual-smart-thermostat#readme"
 }
