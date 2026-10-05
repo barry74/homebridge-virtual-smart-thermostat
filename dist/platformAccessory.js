@@ -83,8 +83,7 @@ export class VirtualThermostatAccessory {
             .onGet(() => this.platform.Characteristic.TemperatureDisplayUnits.CELSIUS)
             .onSet(async () => undefined);
         if (device.showHeaterSwitch === true) {
-            this.heaterSwitch = this.accessory.getService('Heater')
-                || this.accessory.addService(this.platform.Service.Switch, `${device.name} kachel`, 'heater');
+            this.heaterSwitch = this.serviceBySubtype(this.platform.Service.Switch, 'heater', `${device.name} kachel`);
             this.heaterSwitch.setCharacteristic(this.platform.Characteristic.Name, `${device.name} kachel`);
             this.heaterSwitch.getCharacteristic(this.platform.Characteristic.On)
                 .onGet(() => this.heaterOn)
@@ -95,14 +94,10 @@ export class VirtualThermostatAccessory {
             });
         }
         else {
-            const leftoverHeater = this.accessory.getService('Heater');
-            if (leftoverHeater) {
-                this.accessory.removeService(leftoverHeater);
-            }
+            this.removeBySubtype('heater');
         }
         if (device.showCoolerSwitch === true) {
-            this.coolerSwitch = this.accessory.getService('Cooler')
-                || this.accessory.addService(this.platform.Service.Switch, `${device.name} koeling`, 'cooler');
+            this.coolerSwitch = this.serviceBySubtype(this.platform.Service.Switch, 'cooler', `${device.name} koeling`);
             this.coolerSwitch.setCharacteristic(this.platform.Characteristic.Name, `${device.name} koeling`);
             this.coolerSwitch.getCharacteristic(this.platform.Characteristic.On)
                 .onGet(() => this.coolerOn)
@@ -112,22 +107,15 @@ export class VirtualThermostatAccessory {
             });
         }
         else {
-            const leftoverCooler = this.accessory.getService('Cooler');
-            if (leftoverCooler) {
-                this.accessory.removeService(leftoverCooler);
-            }
+            this.removeBySubtype('cooler');
         }
-        this.heatState = this.accessory.getService('Heat State')
-            || this.accessory.addService(this.platform.Service.OccupancySensor, `${device.name} heat`, 'heat-state');
+        this.heatState = this.serviceBySubtype(this.platform.Service.OccupancySensor, 'heat-state', `${device.name} heat`);
         this.heatState.setCharacteristic(this.platform.Characteristic.Name, `${device.name} heat`);
         this.heatState.getCharacteristic(this.platform.Characteristic.OccupancyDetected)
             .onGet(() => this.heaterOn
             ? this.platform.Characteristic.OccupancyDetected.OCCUPANCY_DETECTED
             : this.platform.Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED);
-        const leftoverTv = this.accessory.getService('TV Heat');
-        if (leftoverTv) {
-            this.accessory.removeService(leftoverTv);
-        }
+        this.removeBySubtype('tv-heat');
         this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, this.currentTemperature);
         this.service.updateCharacteristic(this.platform.Characteristic.TargetTemperature, this.targetTemperature);
         this.service.updateCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState, this.targetState);
@@ -264,6 +252,20 @@ export class VirtualThermostatAccessory {
             targetState: this.targetState,
             currentTemperature: this.currentTemperature,
         };
+    }
+    serviceBySubtype(serviceType, subtype, displayName) {
+        const existing = this.accessory.services.find((service) => service.subtype === subtype);
+        if (existing) {
+            existing.displayName = displayName;
+            return existing;
+        }
+        return this.accessory.addService(serviceType, displayName, subtype);
+    }
+    removeBySubtype(subtype) {
+        const existing = this.accessory.services.find((service) => service.subtype === subtype);
+        if (existing) {
+            this.accessory.removeService(existing);
+        }
     }
     visibleModes() {
         const off = this.platform.Characteristic.TargetHeatingCoolingState.OFF;
