@@ -206,7 +206,7 @@ function parseSensorChoice(sensor?: string): SensorChoice {
   if (!raw || raw === 'auto') {
     return { mode: 'auto' };
   }
-  if (raw === 'addon' || raw === 'add-on' || raw === 'external' || raw === 'ext' || raw === 'uni') {
+  if (raw === 'addon' || raw === 'add-on' || raw === 'external' || raw === 'ext' || raw === 'uni' || raw === 'blu' || raw === 'bthome') {
     return { mode: 'external' };
   }
   if (raw === 'internal' || raw === 'device' || raw === 'chip') {
@@ -249,6 +249,16 @@ function parseShellyGen2(data: unknown, choice: SensorChoice): ClimateReading {
         internal.push(entry);
       }
     }
+    if (key.startsWith('bthomedevice:') || key.startsWith('bthomesensor:')) {
+      const id = key.slice(key.indexOf(':') + 1);
+      const addr = typeof block.addr === 'string' ? block.addr.toLowerCase() : undefined;
+      const temperature = numeric(block.temperature ?? block.tC ?? block.t_c ?? block.value);
+      const humidity = numeric(block.humidity ?? block.rh);
+      external.push({ id, temperature, humidity });
+      if (addr) {
+        external.push({ id: addr, temperature, humidity });
+      }
+    }
     if (key.startsWith('switch:') || key.startsWith('cover:')) {
       const nested = block.temperature;
       if (nested && typeof nested === 'object') {
@@ -267,7 +277,7 @@ function parseShellyGen2(data: unknown, choice: SensorChoice): ClimateReading {
   return {
     temperature: picked.temperature,
     humidity: picked.humidity,
-    source: `addon:${picked.id}`,
+    source: `shelly:${picked.id}`,
   };
 }
 

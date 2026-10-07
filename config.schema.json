@@ -50,13 +50,13 @@
             "shellyHost": {
               "title": "Shelly IP-adres (optioneel)",
               "type": "string",
-              "description": "Direct uitlezen via het lokale IP. Werkt voor Shelly H&T, Shelly Uni (DS18B20) en Shelly Plus/Add-on.",
+              "description": "Direct uitlezen via het lokale IP van de Shelly met netwerk. Werkt voor H&T, Uni, Add-on en een BLU H&T die via BTHome aan die Shelly hangt.",
               "placeholder": "192.168.1.50"
             },
             "shellySensor": {
               "title": "Shelly probe (Uni / Add-on)",
               "type": "string",
-              "description": "Leeg = eerste externe thermometer. Shelly Uni: 0 of 1. Shelly Add-on: 100, 101, 102. Ook addon, external of internal.",
+              "description": "Leeg = eerste externe thermometer. Uni: 0 of 1. Add-on: 100. BLU H&T via BTHome: 200 of het MAC-adres. Ook blu, addon, external of internal.",
               "placeholder": "0"
             },
             "shellyUser": {
