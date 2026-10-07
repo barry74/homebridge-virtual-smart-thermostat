@@ -1,67 +1,62 @@
-# Virtual Smart Thermostat voor Homebridge
+# Virtual Smart Thermostat
 
-Werkt met **Homebridge 1.8+ en 2.x**.
+Homebridge-plugin voor een virtuele thermostaat in Apple Home. De temperatuur komt van een Shelly, een HTTP-url of een webhook. De plugin schakelt zelf niets fysieks, tenzij je een webhook instelt. Voor Apple Home-automations publiceert hij een aanwezigheidssensor die aan gaat als er verwarmd moet worden.
 
-Virtuele HomeKit-thermostaat. Je kiest zelf welke thermometer de huidige temperatuur levert, bijvoorbeeld een **Shelly H&T**.
+Werkt met Homebridge 1.8 en 2.x.
 
-## Temperatuurbron kiezen
+## Temperatuurbron
 
-Vul bij elke thermostaat **Thermometer** in met de naam zoals die in Apple Home / Homebridge staat:
+Per thermostaat vul je `shellyHost` in met het IP-adres van de Shelly die op het netwerk zit. Een BLU H&T heeft geen eigen IP. Die lees je uit via de Shelly-gateway waar hij via BTHome aan hangt.
 
-```text
-Shelly H&T
-```
+De plugin slaat ongeldige waarden over (`999` of leeg) en gebruikt de chiptemperatuur van een relais niet als kamerthermometer. Die is te warm.
 
-of de kamernaam van de sensor, bijvoorbeeld `Woonkamer`.
+| Bron | Shelly | `shellySensor` |
+| --- | --- | --- |
+| Uni, DS18B20 op 1-Wire | gen1, `/status` → `ext_temperature` | `0` of `1` |
+| Plus Add-on, DS18B20 of DHT22 | `temperature:100` en hoger | `100`, `101` |
+| BLU H&T via BTHome | gateway, `bthomedevice:200` | `200`, `201` of het MAC-adres |
+| Shelly H&T met eigen IP | gen1 of Plus | leeg |
 
-Bij het starten schrijft de plugin in de log welke sensors hij ziet:
+Laat `shellySensor` leeg voor de eerste externe thermometer. `uni`, `addon`, `blu` en `external` doen hetzelfde. `internal` leest alleen de apparaattemperatuur.
 
-```text
-Beschikbare temperatuursensors: Shelly H&T, HomePod mini
-```
-
-Kopieer die naam exact.
-
-### Shelly alleen in Apple Home
-
-Apple Home laat een plugin niet vrij een willekeurige HomeKit-sensor kiezen. Als de Shelly **alleen** via Matter/HomeKit in Apple Home staat en niet via een Homebridge-plugin, vul dan het lokale IP in:
-
-```json
-"shellyHost": "192.168.1.50"
-```
-
-De plugin leest dan rechtstreeks de thermometer (gen1 en gen2/Plus).
-
-### Shelly Uni (gen1, DS18B20)
-
-Shelly Uni heeft geen ingebouwde kamerthermometer. De 1-Wire probes staan in `/status` onder `ext_temperature`. Zonder `shellySensor` wordt de eerste geldige probe gebruikt. Kies `0` of `1` als er twee thermometers op de Uni zitten:
+Voorbeeld Uni:
 
 ```json
 "shellyHost": "192.168.1.40",
 "shellySensor": "0"
 ```
 
-Ongeldige probes (`999` of leeg) worden overgeslagen. Een DHT22 op de Uni levert ook luchtvochtigheid.
-
-### Shelly Add-on (Plus 1 / Plus 1PM / Plus 2PM)
-
-De Shelly Plus Add-on (DS18B20 of DHT22) verschijnt als `temperature:100`, `temperature:101`, … De chiptemperatuur van het relais (`switch:0`) wordt niet gebruikt, die is te warm. Zonder `shellySensor` pakt de plugin de eerste Add-on-probe. Meerdere probes:
+Voorbeeld Add-on:
 
 ```json
 "shellyHost": "192.168.1.41",
 "shellySensor": "100"
 ```
 
-`addon` of `external` dwingt een externe probe. `internal` leest alleen de apparaattemperatuur (niet aan te raden voor een kamerthermostaat). Optioneel `shellyUser` / `shellyPassword` (basic of digest).
+Voorbeeld BLU H&T aan een Plus-gateway:
 
-### Volgorde
+```json
+"shellyHost": "192.168.1.42",
+"shellySensor": "200"
+```
 
-1. `shellyHost` als die is ingevuld
-2. Anders `temperatureUrl`
-3. Anders `temperatureSensor` (Homebridge-cache, of IP als je daar een adres invult)
-4. Anders webhook naar poort 18081
+Optioneel `shellyUser` en `shellyPassword` (basic of digest). Vochtigheid van een DHT22, H&T of BLU H&T wordt op de thermostaat getoond als de Shelly die meestuurt.
 
-Vochtigheid van een Shelly H&T wordt ook op de thermostaat getoond.
+Andere bronnen, in deze volgorde als `shellyHost` leeg is:
+
+1. `temperatureUrl`, een URL die een getal of JSON met `temperature` teruggeeft
+2. `temperatureSensor`, de naam van een sensor die Homebridge zelf publiceert
+3. webhook op poort `18081`
+
+Een HomePod mini kan de plugin niet uitlezen. Die sensor zit alleen in Apple Home. Stuur de waarde dan zelf naar de webhook:
+
+```bash
+curl -X POST http://IP-VAN-HOMEBRIDGE:18081/temperature \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"woonkamer","temperature":21.4}'
+```
+
+`id` is het id van de thermostaat in de config.
 
 ## Configuratie
 
@@ -75,69 +70,67 @@ Vochtigheid van een Shelly H&T wordt ook op de thermostaat getoond.
     {
       "id": "woonkamer",
       "name": "Woonkamer thermostaat",
-      "temperatureSensor": "Shelly H&T",
-      "shellyHost": "192.168.1.40",
-      "shellySensor": "0",
+      "shellyHost": "192.168.1.42",
+      "shellySensor": "200",
       "defaultTarget": 20,
       "hysteresis": 0.5,
       "minOnSeconds": 90,
       "minOffSeconds": 90,
       "showHeaterSwitch": false,
-      "appliances": [
-        {
-          "name": "Ketel",
-          "type": "heater",
-          "controlType": "webhook",
-          "webhook": "http://192.168.1.50/api/heater"
-        }
-      ]
+      "showModeOff": true,
+      "showModeHeat": true,
+      "showModeCool": false,
+      "showModeAuto": false
     }
   ]
 }
 ```
 
+`pollInterval` is de pauze tussen twee metingen, in seconden. `hysteresis` is de marge rond het setpoint. `minOnSeconds` en `minOffSeconds` voorkomen dat de warmtevraag blijft klapperen.
+
+## Standen in Apple Home
+
+Standaard zijn alleen Uit en Verwarmen zichtbaar. Zet `showModeCool` of `showModeAuto` op `true` om Koelen of Automatisch te tonen. Na die wijziging de thermostaat uit Apple Home verwijderen en Homebridge herstarten, anders houdt de Woning-app de oude standen vast.
+
+## Verwarming schakelen
+
+De plugin maakt een aanwezigheidssensor `Woonkamer thermostaat heat`:
+
+- aanwezig = er moet verwarmd worden
+- afwezig = verwarming uit
+
+In Apple Home of Eve:
+
+1. Als heat aanwezig is, zet je de echte stekker of ketel aan.
+2. Als heat afwezig is, zet je die uit.
+
+Met `showHeaterSwitch: true` komt er ook een schakelaar in Apple Home. Een directe webhook kan zo:
+
+```json
+"appliances": [
+  {
+    "name": "Ketel",
+    "type": "heater",
+    "controlType": "webhook",
+    "webhook": "http://192.168.1.50/api/heater"
+  }
+]
+```
+
 ## Installeren
 
-Kopieer de map naar:
+In Homebridge: plugin `homebridge-virtual-smart-thermostat` bijwerken naar 1.2.2 of nieuwer.
+
+Of handmatig:
 
 ```text
 /var/lib/homebridge/node_modules/homebridge-virtual-smart-thermostat
 ```
 
-of in Docker:
+In Docker:
 
 ```text
 /homebridge/node_modules/homebridge-virtual-smart-thermostat
 ```
 
-Herstart Homebridge. Verwijder `homebridge-smart-thermostat-control`.
-
-## Automations in Apple Home of Eve
-
-Er is altijd een sensor **Woonkamer thermostaat heat** (occupancy):
-
-- aanwezig = **heat on**
-- niet aanwezig = **heat off**
-
-In Eve of de Woning-app:
-
-1. Als `heat` aanwezig is → echte stekker/ketel aan
-2. Als `heat` niet meer aanwezig is → echte stekker/ketel uit
-
-De schakelaar **Woonkamer kachel** is optioneel. Alleen zichtbaar met `"showHeaterSwitch": true`.
-
-TV-warmtecompensatie zit er niet in.
-
-
-## Standen in Apple Home
-
-Standaard zijn alleen **Uit** en **Verwarmen** zichtbaar. Koelen en Automatisch staan uit.
-
-```json
-"showModeOff": true,
-"showModeHeat": true,
-"showModeCool": false,
-"showModeAuto": false
-```
-
-Zet `showModeCool` of `showModeAuto` op `true` als je die stand wel wilt. Na een wijziging de thermostaat in Apple Home even verwijderen en Homebridge herstarten, anders houdt de Woning-app de oude standen vast.
+Herstart Homebridge daarna.
