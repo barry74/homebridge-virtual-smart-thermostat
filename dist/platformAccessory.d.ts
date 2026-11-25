@@ -1,0 +1,38 @@
+import type { PlatformAccessory } from 'homebridge';
+import type { VirtualSmartThermostatPlatform } from './platform.js';
+import type { ThermostatConfig } from './settings.js';
+export declare class VirtualThermostatAccessory {
+    private readonly platform;
+    readonly accessory: PlatformAccessory;
+    readonly device: ThermostatConfig;
+    private readonly service;
+    private readonly info;
+    private readonly heaterSwitch?;
+    private readonly coolerSwitch?;
+    private readonly heatState?;
+    private currentTemperature;
+    private currentHumidity?;
+    private targetTemperature;
+    private targetState;
+    private currentState;
+    private lastOnAt;
+    private lastOffAt;
+    private heaterOn;
+    private coolerOn;
+    constructor(platform: VirtualSmartThermostatPlatform, accessory: PlatformAccessory, device: ThermostatConfig);
+    get id(): string;
+    setClimate(temperature?: number, humidity?: number): Promise<void>;
+    setCurrentTemperature(value: number): Promise<void>;
+    evaluate(): Promise<void>;
+    private setHeater;
+    private setCooler;
+    private updateHeatState;
+    private touchTiming;
+    private setAppliancesOfType;
+    private controlAppliance;
+    private persist;
+    private serviceBySubtype;
+    private removeBySubtype;
+    private visibleModes;
+    private modeName;
+}

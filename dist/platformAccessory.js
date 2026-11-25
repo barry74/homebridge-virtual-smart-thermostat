@@ -82,7 +82,9 @@ export class VirtualThermostatAccessory {
         this.service.getCharacteristic(this.platform.Characteristic.TemperatureDisplayUnits)
             .onGet(() => this.platform.Characteristic.TemperatureDisplayUnits.CELSIUS)
             .onSet(async () => undefined);
-        if (device.showHeaterSwitch === true) {
+        const showHeaterSwitch = device.showHeaterSwitch === true;
+        const showCoolerSwitch = device.showCoolerSwitch === true;
+        if (showHeaterSwitch) {
             this.heaterSwitch = this.serviceBySubtype(this.platform.Service.Switch, 'heater', `${device.name} kachel`);
             this.heaterSwitch.setCharacteristic(this.platform.Characteristic.Name, `${device.name} kachel`);
             this.heaterSwitch.getCharacteristic(this.platform.Characteristic.On)
@@ -96,7 +98,7 @@ export class VirtualThermostatAccessory {
         else {
             this.removeBySubtype('heater');
         }
-        if (device.showCoolerSwitch === true) {
+        if (showCoolerSwitch) {
             this.coolerSwitch = this.serviceBySubtype(this.platform.Service.Switch, 'cooler', `${device.name} koeling`);
             this.coolerSwitch.setCharacteristic(this.platform.Characteristic.Name, `${device.name} koeling`);
             this.coolerSwitch.getCharacteristic(this.platform.Characteristic.On)
@@ -273,7 +275,12 @@ export class VirtualThermostatAccessory {
         const cool = this.platform.Characteristic.TargetHeatingCoolingState.COOL;
         const auto = this.platform.Characteristic.TargetHeatingCoolingState.AUTO;
         const listed = (this.device.modes ?? []).map((mode) => mode.toLowerCase());
-        const enabled = (name, flag, fallback) => listed.length > 0 ? listed.includes(name) : (flag ?? fallback);
+        const enabled = (name, flag, fallback) => {
+            if (listed.length > 0) {
+                return listed.includes(name);
+            }
+            return flag ?? fallback;
+        };
         const modes = [
             enabled('off', this.device.showModeOff, true) ? off : undefined,
             enabled('heat', this.device.showModeHeat, true) ? heat : undefined,
@@ -295,3 +302,4 @@ export class VirtualThermostatAccessory {
         }
     }
 }
+//# sourceMappingURL=platformAccessory.js.map

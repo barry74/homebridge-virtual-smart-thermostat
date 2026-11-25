@@ -1,13 +1,11 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-
 const CURRENT_TEMPERATURE_UUID = '00000011-0000-1000-8000-0026BB765291';
 const CURRENT_HUMIDITY_UUID = '00000010-0000-1000-8000-0026BB765291';
 const TEMPERATURE_SENSOR_UUID = '0000008a-0000-1000-8000-0026BB765291';
 const THERMOSTAT_UUID = '0000004a-0000-1000-8000-0026BB765291';
 const HUMIDITY_SENSOR_UUID = '00000082-0000-1000-8000-0026BB765291';
-
 function normalize(value) {
     return value.trim().toLowerCase();
 }
@@ -145,7 +143,7 @@ function parseSensorChoice(sensor) {
     if (!raw || raw === 'auto') {
         return { mode: 'auto' };
     }
-    if (raw === 'addon' || raw === 'add-on' || raw === 'external' || raw === 'ext' || raw === 'uni') {
+    if (raw === 'addon' || raw === 'add-on' || raw === 'external' || raw === 'ext' || raw === 'uni' || raw === 'blu' || raw === 'bthome') {
         return { mode: 'external' };
     }
     if (raw === 'internal' || raw === 'device' || raw === 'chip') {
@@ -178,11 +176,22 @@ function parseShellyGen2(data, choice) {
                     ? numeric(humidityBlock.rh ?? humidityBlock.value)
                     : undefined,
             };
+            // Shelly Add-on probes beginnen bij id 100. temperature:0 is vaak de chiptemperatuur.
             if (Number(id) >= 100) {
                 external.push(entry);
             }
             else {
                 internal.push(entry);
+            }
+        }
+        if (key.startsWith('bthomedevice:') || key.startsWith('bthomesensor:')) {
+            const id = key.slice(key.indexOf(':') + 1);
+            const addr = typeof block.addr === 'string' ? block.addr.toLowerCase() : undefined;
+            const temperature = numeric(block.temperature ?? block.tC ?? block.t_c ?? block.value);
+            const humidity = numeric(block.humidity ?? block.rh);
+            external.push({ id, temperature, humidity });
+            if (addr) {
+                external.push({ id: addr, temperature, humidity });
             }
         }
         if (key.startsWith('switch:') || key.startsWith('cover:')) {
@@ -202,7 +211,7 @@ function parseShellyGen2(data, choice) {
     return {
         temperature: picked.temperature,
         humidity: picked.humidity,
-        source: `addon:${picked.id}`,
+        source: `shelly:${picked.id}`,
     };
 }
 function parseShellyGen1(data, choice) {
@@ -211,8 +220,12 @@ function parseShellyGen1(data, choice) {
     }
     const obj = data;
     const external = [];
-    const temps = obj.ext_temperature && typeof obj.ext_temperature === 'object' ? obj.ext_temperature : {};
-    const hums = obj.ext_humidity && typeof obj.ext_humidity === 'object' ? obj.ext_humidity : {};
+    const temps = obj.ext_temperature && typeof obj.ext_temperature === 'object'
+        ? obj.ext_temperature
+        : {};
+    const hums = obj.ext_humidity && typeof obj.ext_humidity === 'object'
+        ? obj.ext_humidity
+        : {};
     for (const [id, value] of Object.entries(temps)) {
         if (!value || typeof value !== 'object') {
             continue;
@@ -255,6 +268,7 @@ function pickShellySensor(all, external, internal, choice) {
     if (choice.mode === 'internal') {
         return valid(internal)[0];
     }
+    // auto en external: Shelly Uni-probes en Add-on (id >= 100) eerst, nooit de hete relaischip.
     return valid(external)[0] ?? (choice.mode === 'auto' ? valid(internal)[0] : undefined);
 }
 async function fetchJson(url, auth) {
@@ -319,3 +333,4 @@ function readPath(data, pathName) {
     }
     return current;
 }
+//# sourceMappingURL=sensors.js.map

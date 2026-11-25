@@ -20,9 +20,22 @@ export interface ThermostatConfig {
     hysteresis?: number;
     minOnSeconds?: number;
     minOffSeconds?: number;
+    temperatureSensor?: string;
+    shellyHost?: string;
+    /** Probe-index of id: 0/1 op Shelly Uni, 100/101 op Shelly Add-on, of addon/external/internal. */
+    shellySensor?: string;
+    shellyUser?: string;
+    shellyPassword?: string;
     temperatureUrl?: string;
     temperatureJsonPath?: string;
-    tvCompensation?: number;
+    showHeaterSwitch?: boolean;
+    showCoolerSwitch?: boolean;
+    /** Zichtbare standen in Apple Home. Standaard alle vier. */
+    modes?: Array<'off' | 'heat' | 'cool' | 'auto'>;
+    showModeOff?: boolean;
+    showModeHeat?: boolean;
+    showModeCool?: boolean;
+    showModeAuto?: boolean;
     appliances?: ApplianceConfig[];
 }
 export interface PluginConfig {

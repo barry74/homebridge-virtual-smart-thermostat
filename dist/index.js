@@ -3,3 +3,4 @@ import { PLATFORM_NAME } from './settings.js';
 export default (api) => {
     api.registerPlatform(PLATFORM_NAME, VirtualSmartThermostatPlatform);
 };
+//# sourceMappingURL=index.js.map

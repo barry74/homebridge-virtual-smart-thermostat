@@ -18,10 +18,10 @@ function sendJson(res, status, body) {
 function parseIdAndValue(input, query) {
     return {
         id: input.id ?? query.get('id') ?? undefined,
-        value: input.value ?? input.temperature ?? input.active ?? query.get('value') ?? query.get('temperature') ?? query.get('active'),
+        value: input.value ?? input.temperature ?? query.get('value') ?? query.get('temperature'),
     };
 }
-export function startWebhookServer(port, log, onTemperature, onTv) {
+export function startWebhookServer(port, log, onTemperature) {
     const server = http.createServer(async (req, res) => {
         try {
             if (!req.url || !req.method) {
@@ -73,8 +73,7 @@ export function startWebhookServer(port, log, onTemperature, onTv) {
     });
     server.listen(port, '0.0.0.0', () => {
         log.info(`Webhook server listening on port ${port}`);
-        log.info('POST /temperature  { "id": "<thermostat-id>", "value": 19.5 }');
-        log.info('POST /temperature  { "id": "<thermostat-id>", "value": 19.5 }');
+        log.info(`POST /temperature  { "id": "<thermostat-id>", "value": 19.5 }`);
     });
     server.on('error', (error) => {
         log.error(`Webhook server failed on port ${port}:`, error);
@@ -108,3 +107,4 @@ function readPath(data, path) {
     }
     return current;
 }
+//# sourceMappingURL=http.js.map

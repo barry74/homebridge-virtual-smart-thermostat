@@ -143,3 +143,4 @@ export class VirtualSmartThermostatPlatform {
         return undefined;
     }
 }
+//# sourceMappingURL=platform.js.map
